@@ -14,20 +14,30 @@ board: NodeMCU1.0 (ESP-12E Module)
 #include <WiFiClient.h>
 #include <SoftwareSerial.h>;
 
+#include <Servo.h>
+
 // This is for each variable to use it's real size when stored
 #pragma pack(push, 1)
 
 //Constants
 #define LED D4
+#define SERVO_UPLOAD D7
+#define SERVO_DOWNLOAD D6
+
+Servo servo_upload;
+Servo servo_download;
+
+int increment = 0;
+int angulo = 0;
 
 // prototipes
-void read_value();
+void read_values();
 void blinkLed();
 void connectIfNeeded();
 
 const char* ssid = "Starlink";
 const char* password = "82111847";
-const char* baseURL = "http://94.177.253.187:8889";
+const char* baseURL = "http://192.168.1.151:8889";
 
 unsigned int tConnect = millis();
 unsigned long tLastConnectionAttempt = 0;
@@ -45,13 +55,21 @@ struct
     char* functionName;
 } TIMERS[] = {
   { true, 1*1000, 0, &blinkLed, "blinkLed" },
-  { true, 2*1000, 0, &read_value, "read_value" },    
+  { true, 1*1000, 0, &read_values, "read_values" },    
   { true, 5*1000, 0, &connectIfNeeded, "connectIfNeeded" },  
 };
 
 void setup() {
   pinMode(LED, OUTPUT);
-  Serial.begin(115200); 
+  
+  Serial.begin(115200);
+
+  servo_upload.write(0);
+  servo_upload.attach(SERVO_UPLOAD);
+
+  servo_download.write(0);
+  servo_download.attach(SERVO_DOWNLOAD);
+  delay(1000);
 }
 
 
@@ -110,33 +128,94 @@ void blinkLed(){
   digitalWrite(LED, !digitalRead(LED));
 }
 
-void read_value(){
 
-  static int count=0;
+void read_values(){
+  read_download();
+  read_upload();
+}
+
+void read_download(){
+
+  static long count=0;
 
   char buffer[100];
   WiFiClient client;
   HTTPClient http;
 
-  sprintf(buffer, "%s/last", baseURL);
+  sprintf(buffer, "%s/download", baseURL);
   
   http.begin(client, buffer);
   
   int httpResponseCode = http.GET();
 
   if (httpResponseCode == 200){
+
+        servo_upload.attach(SERVO_UPLOAD);
         String payload = http.getString();
-        sprintf(buffer, "%04d [%d] %s", ++count, httpResponseCode, payload.c_str());
+
+        // Something went wrong on the servers side
+        if (payload == "-1") return;
+            
+        const char *info = payload.c_str();
+        int angle = atoi(info);
+        
+        //sprintf(buffer, "%04d [%d] %d", count, httpResponseCode, angle);
+        //Serial.println(buffer);
+        sprintf(buffer, "[%d] Download: moving to %d", count, angle);
         Serial.println(buffer);
+        servo_download.write(angle);
+        servo_upload.detach();
+        count ++;
       }
       else {
         sprintf(buffer, "[send] error code: %d", httpResponseCode);
         Serial.println(buffer);
       }
       // Free resources
-      http.end();    
+      http.end();                                              
 
 }
+
+void read_upload(){
+
+  static long count=0;
+
+  char buffer[100];
+  WiFiClient client;
+  HTTPClient http;
+
+  sprintf(buffer, "%s/upload", baseURL);
+  
+  http.begin(client, buffer);
+  
+  int httpResponseCode = http.GET();
+
+  if (httpResponseCode == 200){
+    
+        String payload = http.getString();
+
+        // Something went wrong on the servers side
+        if (payload == "-1") return;
+            
+        const char *info = payload.c_str();
+        int angle = atoi(info);
+        
+        //sprintf(buffer, "%04d [%d] %d", count, httpResponseCode, angle);
+        //Serial.println(buffer);
+        sprintf(buffer, "[%d] Upload: moving to %d", count, angle);
+        Serial.println(buffer);
+        servo_upload.write(angle);
+        count ++;
+      }
+      else {
+        sprintf(buffer, "[send] error code: %d", httpResponseCode);
+        Serial.println(buffer);
+      }
+      // Free resources
+      http.end();                                              
+
+}
+
 
 
 void connectIfNeeded(){
@@ -151,11 +230,6 @@ void connectIfNeeded(){
 }
 
 void loop() {
-
   attendTimers();
   delay(20);
-
-  //digitalWrite(LED, !digitalRead(LED));
-  //delay(100);
-
 }
