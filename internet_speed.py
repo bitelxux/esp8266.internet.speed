@@ -18,22 +18,14 @@ def main():
 def download():
     with open(os.path.join(root_dir, "speed"), "r") as f:
         speed = f.readline()
-        if not speed:
-            return "-1";
-        #angle = 180 - (int(float(speed))*180)/MAX_SPEED
-        angle = 180 - int(float(speed)*180/MAX_UPLOAD)
-        return str(int(angle))
+        return speed or "-1"
 
 @app.route('/upload')
 def upload():
     with open(os.path.join(root_dir, "speed"), "r") as f:
         speed = f.readline() #  to discard. Its download
         speed = f.readline()
-        if not speed:
-            return "-1";
-        #angle = 180 - (int(float(speed))*180)/MAX_SPEED
-        angle = 180 - int(float(speed)*180/MAX_DOWNLOAD)
-        return str(int(angle))
+        return speed or "-1"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8889, threaded=True)

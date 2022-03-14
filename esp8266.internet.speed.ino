@@ -21,8 +21,8 @@ board: NodeMCU1.0 (ESP-12E Module)
 
 //Constants
 #define LED D4
-#define SERVO_UPLOAD D7
 #define SERVO_DOWNLOAD D6
+#define SERVO_UPLOAD D7
 
 Servo servo_upload;
 Servo servo_download;
@@ -55,7 +55,7 @@ struct
     char* functionName;
 } TIMERS[] = {
   { true, 1*1000, 0, &blinkLed, "blinkLed" },
-  { true, 1*1000, 0, &read_values, "read_values" },    
+  { true, 5*1000, 0, &read_values, "read_values" },    
   { true, 5*1000, 0, &connectIfNeeded, "connectIfNeeded" },  
 };
 
@@ -64,12 +64,13 @@ void setup() {
   
   Serial.begin(115200);
 
-  servo_upload.write(0);
   servo_upload.attach(SERVO_UPLOAD);
+  servo_upload.write(0);
 
-  servo_download.write(0);
   servo_download.attach(SERVO_DOWNLOAD);
-  delay(1000);
+  servo_download.write(180);
+
+  delay(5000);
 }
 
 
@@ -150,21 +151,22 @@ void read_download(){
 
   if (httpResponseCode == 200){
 
-        servo_upload.attach(SERVO_UPLOAD);
         String payload = http.getString();
 
         // Something went wrong on the servers side
         if (payload == "-1") return;
             
         const char *info = payload.c_str();
-        int angle = atoi(info);
+        int speed = atoi(info);
+        int angle = (int)(180*speed)/350;
         
         //sprintf(buffer, "%04d [%d] %d", count, httpResponseCode, angle);
         //Serial.println(buffer);
         sprintf(buffer, "[%d] Download: moving to %d", count, angle);
         Serial.println(buffer);
-        servo_download.write(angle);
-        servo_upload.detach();
+        
+        move_download(angle);
+        
         count ++;
       }
       else {
@@ -198,13 +200,16 @@ void read_upload(){
         if (payload == "-1") return;
             
         const char *info = payload.c_str();
-        int angle = atoi(info);
+        int speed = atoi(info);
+        int angle = (int)(180*speed)/60;
         
         //sprintf(buffer, "%04d [%d] %d", count, httpResponseCode, angle);
         //Serial.println(buffer);
         sprintf(buffer, "[%d] Upload: moving to %d", count, angle);
         Serial.println(buffer);
-        servo_upload.write(angle);
+
+        move_upload(angle);
+        
         count ++;
       }
       else {
@@ -229,7 +234,54 @@ void connectIfNeeded(){
 
 }
 
+void move_upload(int angle){
+  servo_upload.write(angle);
+}
+
+void move_download(int angle){
+  servo_download.write(180 - angle);
+}
+
+void test_servo_upload(){
+  for (int angle=0; angle<=180; angle+=90){
+    servo_upload.write(angle);
+    delay(1000);
+  }
+  
+  for (int angle=180; angle>=0; angle-=90){
+    servo_upload.write(angle);
+    delay(1000);
+  }  
+}
+
+void test_servo_download(){
+  for (int angle=0; angle<=180; angle+=90){
+    servo_download.write(180 - angle);
+    delay(1000);
+  }
+  
+  for (int angle=180; angle>=0; angle-=90){
+    servo_download.write(180 - angle);
+    delay(1000);
+  }  
+}
+
+void fake_readings(){
+  int download = random(0, 350);
+  int upload = random(0, 60);
+
+  int download_angle = (int)(180*download)/350;
+  int upload_angle = (int)(180*download)/60;
+
+  move_download(download_angle);
+  move_upload(upload_angle);  
+}
+
 void loop() {
+  
+  //test_servo_upload();
+  //test_servo_download();
+  
   attendTimers();
   delay(20);
 }
